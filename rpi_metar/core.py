@@ -60,14 +60,11 @@ def fetch_metars(queue, cfg):
         # Allow duplicate LEDs by only using the first 4 chars as the ICAO. Anything else after it helps keep it unique.
         airport_codes = set([code[:4] for code in AIRPORTS.keys()])
         for source in srcs:
-            if source == KO61:
-                data_source = KO61(list(airport_codes), config=cfg)
-            else:
-                try:
-                    data_source = source(list(airport_codes), config=cfg)
-                except:  # noqa
-                    log.exception('Unable to create data source.')
-                    continue
+            try:
+                data_source = source(list(airport_codes), config=cfg)
+            except:  # noqa
+                log.exception('Unable to create data source.')
+                continue
 
             try:
                 info = data_source.get_metar_info()
