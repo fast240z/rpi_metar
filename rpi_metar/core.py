@@ -17,6 +17,7 @@ from rpi_metar.airports import Airport, LED_QUEUE, MAX_WIND_SPEED_KTS, Legend
 from rpi_metar import wx
 from rpi_metar import leds as colors
 from queue import Queue
+from sources import KO61
 
 
 log = logging.getLogger(__name__)
@@ -50,20 +51,6 @@ def fetch_metars(queue, cfg):
     """Fetches new METAR information periodically."""
     failure_count = 0
 
-    # Attempt to import the sources module
-    try:
-        sources_module = importlib.import_module('sources')
-        print('Successfully imported the sources module.')
-    except ImportError:
-        print('Failed to import the sources module.')
-    
-    # Check if KO61 is in the sources module
-    if hasattr(sources_module, 'KO61'):
-        print('KO61 class is present in the sources module.')
-    else:
-    print('KO61 class is not present in the sources module.')
-
-
     # Load the desired data sources from the user configuration.
     srcs = cfg.get('settings', 'sources', fallback='NOAA,NOAABackup,SkyVector,KO61').split(',')
     srcs = [getattr(sources, src.strip()) for src in srcs]
@@ -74,11 +61,14 @@ def fetch_metars(queue, cfg):
         # Allow duplicate LEDs by only using the first 4 chars as the ICAO. Anything else after it helps keep it unique.
         airport_codes = set([code[:4] for code in AIRPORTS.keys()])
         for source in srcs:
-            try:
-                data_source = source(list(airport_codes), config=cfg)
-            except:  # noqa
-                log.exception('Unable to create data source.')
-                continue
+            if source == KO61:
+                data_source = KO61(list(airport_codes), config=cfg)
+            else:
+                try:
+                    data_source = source(list(airport_codes), config=cfg)
+                except:  # noqa
+                    log.exception('Unable to create data source.')
+                    continue
 
             try:
                 info = data_source.get_metar_info()
