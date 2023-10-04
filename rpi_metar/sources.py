@@ -222,7 +222,7 @@ class IFIS(METARSource):
 class KO61(METARSource):
     URL = 'https://ko61.awos.live'
 
-    async def scrape_metar(self):
+    async def get_metar_info(self):
         browser = await launch(executablePath='/usr/bin/chromium-browser', args=['--no-sandbox'], headless=True)
         page = await browser.newPage()
 
@@ -254,5 +254,3 @@ class KO61(METARSource):
         finally:
             await browser.close()
 
-    async def get_metar_info(self):
-        return await self.scrape_metar()
