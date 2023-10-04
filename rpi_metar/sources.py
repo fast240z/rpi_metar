@@ -218,23 +218,26 @@ class IFIS(METARSource):
             metars[info['CODE'].upper()] = {'raw_text': info['METAR']}
 
         return metars
-
+        
 class KO61(METARSource):
-    URL = 'https://ko61.awos.live'
+    def __init__(self, airport_codes, config=None, **kwargs):
+        super().__init__(airport_codes, **kwargs)
+        self.config = config
+        self.URL = config.get('KO61', 'url', fallback='https://ko61.awos.live')
 
-    async def scrape_metar(self):
-        browser = await launch(executablePath='/usr/bin/chromium-browser', args=['--no-sandbox'], headless=True)
-        page = await browser.newPage()
+    def scrape_metar(self):
+        browser = launch(executablePath='/usr/bin/chromium-browser', args=['--no-sandbox'], headless=True)
+        page = browser.newPage()
 
         try:
-            await page.goto(self.URL)
-            await asyncio.sleep(1)
+            page.goto(self.URL)
+            time.sleep(1)
 
             # Wait for the METAR data to load using the updated CSS selector
-            metar_element = await page.waitForSelector('#OfficialObs')
+            metar_element = page.waitForSelector('#OfficialObs')
 
             # Extract the full METAR data
-            full_metar = await page.evaluate('(element) => element.textContent', metar_element)
+            full_metar = page.evaluate('(element) => element.textContent', metar_element)
 
             # Split the string by spaces and select the relevant portion starting with "KO61"
             metar_parts = full_metar.split()
@@ -252,7 +255,8 @@ class KO61(METARSource):
             return None
 
         finally:
-            await browser.close()
+            browser.close()
 
-    async def get_metar_info(self):
-        return await self.scrape_metar()
+    def get_metar_info(self):
+        return self.scrape_metar()
+
