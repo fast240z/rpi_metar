@@ -51,7 +51,7 @@ def fetch_metars(queue, cfg):
     failure_count = 0
 
     # Load the desired data sources from the user configuration.
-    srcs = cfg.get('settings', 'sources', fallback='NOAA,NOAABackup,SkyVector').split(',')
+    srcs = cfg.get('settings', 'sources', fallback='NOAA,NOAABackup,SkyVector,KO61').split(',')
     srcs = [getattr(sources, src.strip()) for src in srcs]
 
     while True:
