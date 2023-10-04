@@ -220,8 +220,6 @@ class IFIS(METARSource):
         return metars
 
 class KO61(METARSource):
-    """Queries the KO61 website service."""
-
     URL = 'https://ko61.awos.live'
 
     async def scrape_metar(self):
@@ -238,11 +236,9 @@ class KO61(METARSource):
             # Extract the full METAR data
             full_metar = await page.evaluate('(element) => element.textContent', metar_element)
 
-            # Split the string using whitespace and select the relevant portion
-            metar_data = ' '.join(full_metar.split()[1:])
-
-            # Replace "OMO" with "METAR" in the METAR data
-            metar_data = metar_data.replace('OMO', 'METAR')
+            # Split the string by spaces and select the relevant portion starting with "KO61"
+            metar_parts = full_metar.split()
+            metar_data = ' '.join(metar_parts[metar_parts.index('KO61'):]).strip()
 
             # Return the METAR data in the specified dictionary format
             metars = {
@@ -257,3 +253,6 @@ class KO61(METARSource):
 
         finally:
             await browser.close()
+
+    async def get_metar_info(self):
+        return await self.scrape_metar()
