@@ -50,6 +50,20 @@ def fetch_metars(queue, cfg):
     """Fetches new METAR information periodically."""
     failure_count = 0
 
+    # Attempt to import the sources module
+    try:
+        sources_module = importlib.import_module('sources')
+        print('Successfully imported the sources module.')
+    except ImportError:
+        print('Failed to import the sources module.')
+    
+    # Check if KO61 is in the sources module
+    if hasattr(sources_module, 'KO61'):
+        print('KO61 class is present in the sources module.')
+    else:
+    print('KO61 class is not present in the sources module.')
+
+
     # Load the desired data sources from the user configuration.
     srcs = cfg.get('settings', 'sources', fallback='NOAA,NOAABackup,SkyVector,KO61').split(',')
     srcs = [getattr(sources, src.strip()) for src in srcs]
