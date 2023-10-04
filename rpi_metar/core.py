@@ -54,11 +54,29 @@ def fetch_metars(queue, cfg):
     srcs = cfg.get('settings', 'sources', fallback='NOAA,NOAABackup,SkyVector,KO61').split(',')
     srcs = [getattr(sources, src.strip()) for src in srcs]
 
+    # Determine if KO61 is in the airport codes
+    airport_codes = set([code[:4] for code in AIRPORTS.keys()])
+    ko61_requested = 'KO61' in airport_codes
+
     while True:
 
         metars = {}
         # Allow duplicate LEDs by only using the first 4 chars as the ICAO. Anything else after it helps keep it unique.
         airport_codes = set([code[:4] for code in AIRPORTS.keys()])
+
+        if ko61_requested:
+            try:
+                # Fetch METAR for KO61 using KO61 class
+                ko61_data_source = sources.KO61(['KO61'], config=cfg)
+                ko61_info = ko61_data_source.get_metar_info()
+                log.info('Retrieved KO61 METAR: %s', ko61_info)
+                metars.update(ko61_info)
+            except Exception as e:
+                log.exception('Failed to retrieve KO61 METAR info: %s', str(e))
+
+            # Remove KO61 from the airport codes so it's not fetched again using other sources
+            airport_codes.discard('KO61')
+            
         for source in srcs:
             try:
                 data_source = source(list(airport_codes), config=cfg)
