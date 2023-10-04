@@ -17,7 +17,6 @@ from rpi_metar.airports import Airport, LED_QUEUE, MAX_WIND_SPEED_KTS, Legend
 from rpi_metar import wx
 from rpi_metar import leds as colors
 from queue import Queue
-from sources import KO61
 
 
 log = logging.getLogger(__name__)
