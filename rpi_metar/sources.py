@@ -3,6 +3,8 @@ import logging
 import re
 import requests
 import time
+import asyncio
+from pyppeteer import launch
 
 from pkg_resources import resource_filename
 from retrying import retry
@@ -216,3 +218,42 @@ class IFIS(METARSource):
             metars[info['CODE'].upper()] = {'raw_text': info['METAR']}
 
         return metars
+
+class KO61(METARSource):
+    """Queries the KO61 website service."""
+
+    URL = 'https://ko61.awos.live'
+
+    async def scrape_metar(self):
+        browser = await launch(executablePath='/usr/bin/chromium-browser', args=['--no-sandbox'], headless=True)
+        page = await browser.newPage()
+
+        try:
+            await page.goto(self.URL)
+            await asyncio.sleep(1)
+
+            # Wait for the METAR data to load using the updated CSS selector
+            metar_element = await page.waitForSelector('#OfficialObs')
+
+            # Extract the full METAR data
+            full_metar = await page.evaluate('(element) => element.textContent', metar_element)
+
+            # Split the string using whitespace and select the relevant portion
+            metar_data = ' '.join(full_metar.split()[1:])
+
+            # Replace "OMO" with "METAR" in the METAR data
+            metar_data = metar_data.replace('OMO', 'METAR')
+
+            # Return the METAR data in the specified dictionary format
+            metars = {
+                'KO61': {'raw_text': metar_data}
+            }
+
+            return metars
+
+        except Exception as e:
+            print(f'Error: {e}')
+            return None
+
+        finally:
+            await browser.close()
