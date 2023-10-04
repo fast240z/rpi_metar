@@ -226,6 +226,7 @@ class KO61(METARSource):
         self.URL = config.get('KO61', 'url', fallback='https://ko61.awos.live')
 
     def scrape_metar(self):
+        logging.info('Fetching METAR data for KO61...')
         browser = launch(executablePath='/usr/bin/chromium-browser', args=['--no-sandbox'], headless=True)
         page = browser.newPage()
 
@@ -243,6 +244,9 @@ class KO61(METARSource):
             metar_parts = full_metar.split()
             metar_data = ' '.join(metar_parts[metar_parts.index('KO61'):]).strip()
 
+            # Log the METAR data
+            logging.info(f'METAR data for KO61: {metar_data}')
+
             # Return the METAR data in the specified dictionary format
             metars = {
                 'KO61': {'raw_text': metar_data}
@@ -256,7 +260,3 @@ class KO61(METARSource):
 
         finally:
             browser.close()
-
-    def get_metar_info(self):
-        return self.scrape_metar()
-
