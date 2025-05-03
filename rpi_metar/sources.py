@@ -3,10 +3,25 @@ import logging
 import re
 import requests
 import time
-
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from pkg_resources import resource_filename
 from retrying import retry
 from xmltodict import parse as parsexml
+
+# Set up Chrome options
+options = webdriver.ChromeOptions()
+options.add_argument('--headless')
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-dev-shm-usage')
+options.add_argument('--disable-gpu')
+options.add_argument('--remote-debugging-port=9222')
+options.binary_location = "/usr/bin/chromium-browser"
+service = Service("/usr/bin/chromedriver")
+driver = webdriver.Chrome(service=service, options=options)
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +43,7 @@ class METARSource:
         try:
             response = requests.get(self.url, timeout=10.0)
             response.raise_for_status()
-        except:  # noqa
+        except:
             log.exception('Metar query failure.')
             raise
         return response
@@ -51,12 +66,8 @@ class NOAA(METARSource):
         self.subdomain = subdomain
 
     def get_metar_info(self):
-        """Queries the NOAA METAR service."""
         metars = {}
 
-        # NOAA can only handle so much at once, so split into chunks.
-        # Even though we can issue larger chunk sizes, sometimes data is missing from the returned
-        # results. Smaller chunks seem to help...
         for chunk in chunks(self.airport_codes, 250):
             self.url = self.URL.format(airport_codes=','.join(chunk), subdomain=self.subdomain)
             response = self._query()
@@ -64,16 +75,16 @@ class NOAA(METARSource):
                 response = parsexml(response.text)['response']['data']['METAR']
                 if not isinstance(response, list):
                     response = [response]
-            except:  # noqa
+            except:
                 log.exception('Metar response is invalid.')
                 raise
             finally:
-                # ...but with more requests, we should be nice and wait a bit before the next
                 time.sleep(1.0)
 
             for m in response:
                 metars[m['station_id'].upper()] = m
 
+        log.info(f"Retrieved NOAA METARs: {metars}")
         return metars
 
 
@@ -87,8 +98,8 @@ class SkyVector(METARSource):
 
     URL = (
         'https://skyvector.com/api/dLayer'
-        '?ll1={lat1},{lon1}'  # lower left
-        '&ll2={lat2},{lon2}'  # upper right
+        '?ll1={lat1},{lon1}'
+        '&ll2={lat2},{lon2}'
         '&layers=metar'
     )
 
@@ -109,15 +120,12 @@ class SkyVector(METARSource):
         lat2 = max((float(lat) for lat, _ in data.values()))
         lon2 = max((float(lon) for _, lon in data.values()))
 
-        # skyvector either isn't inclusive, or our data doesn't match theirs. Regardless, we
-        # must expand the search area slightly.
         lat1, lon1 = map(lambda x: x - 0.5, [lat1, lon1])
         lat2, lon2 = map(lambda x: x + 0.5, [lat2, lon2])
 
         self.url = SkyVector.URL.format(lat1=lat1, lon1=lon1, lat2=lat2, lon2=lon2)
 
     def __init__(self, airport_codes, **kwargs):
-        # Set lat / long info for the request...
         self.airport_codes = [code.upper() for code in airport_codes]
         self._find_coordinates()
 
@@ -125,41 +133,24 @@ class SkyVector(METARSource):
         response = self._query()
         try:
             data = response.json()['weather']
-        except:  # noqa
+        except:
             log.exception('Metar response is invalid.')
             raise
 
-        """Sample response:
-        [{'a': '01h 02m ago',
-         'd': '2018-08-22 18:56:00',
-         'i': '0VFR.png',
-         'lat': '40.4518278',
-         'lon': '-105.0113361',
-         'm': 'KFNL 221856Z AUTO VRB03KT 6SM HZ CLR 23/14 A3025 RMK AO2 SLP194 T02280139 PNO $',
-         'n': 'FT COLLINS/LOVEL',
-         's': 'KFNL',
-         't': None}, ... ]
-        """
-
-        # Make the return match the format of the other sources.
         metars = {}
         for item in data:
             if item['s'] in self.airport_codes:
                 metars[item['s'].upper()] = {'raw_text': item['m']}
-
         return metars
 
 
 class BOM(METARSource):
-    """Queries the BOM website service."""
-
     URL = 'http://www.bom.gov.au/aviation/php/process.php'
 
     def __init__(self, airport_codes, **kwargs):
         self.airport_codes = ','.join(airport_codes)
 
     def get_metar_info(self):
-
         payload = {
             'keyword': self.airport_codes,
             'type': 'search',
@@ -182,8 +173,12 @@ class IFIS(METARSource):
     URL = 'https://www.ifis.airways.co.nz/script/briefing/met_briefing_proc.asp'
     LOGIN_URL = 'https://www.ifis.airways.co.nz/secure/script/user_reg/login_proc.asp'
 
-    # If any airport code outside of this list is used the website will throw an error (eg. MET Locations: the following locations do not issue the requested MET report types: YBBN)
-    ACCEPTED_CODES = {'NZCH', 'NZCI', 'NZAA', 'NZDN', 'NZGS', 'NZHN', 'NZHK', 'NZNV', 'NZKK', 'NZMS', 'NZMF', 'NZNR', 'NZNS', 'NZNP', 'NZOU', 'NZOH', 'NZPM', 'NZPP', 'NZQN', 'NZRO', 'NZAP', 'NZTG', 'NZMO', 'NZTU', 'NZWF', 'NZWN', 'NZWS', 'NZWK', 'NZWU', 'NZWR', 'NZWP', 'NZWB'}
+    ACCEPTED_CODES = {
+        'NZCH', 'NZCI', 'NZAA', 'NZDN', 'NZGS', 'NZHN', 'NZHK', 'NZNV', 'NZKK',
+        'NZMS', 'NZMF', 'NZNR', 'NZNS', 'NZNP', 'NZOU', 'NZOH', 'NZPM', 'NZPP',
+        'NZQN', 'NZRO', 'NZAP', 'NZTG', 'NZMO', 'NZTU', 'NZWF', 'NZWN', 'NZWS',
+        'NZWK', 'NZWU', 'NZWR', 'NZWP', 'NZWB'
+    }
 
     def __init__(self, airport_codes, *, config, **kwargs):
         self.airport_codes = ' '.join([code for code in airport_codes if code in IFIS.ACCEPTED_CODES])
@@ -199,20 +194,50 @@ class IFIS(METARSource):
         }
 
     def get_metar_info(self):
-
         with requests.Session() as session:
-             
             session.post(self.LOGIN_URL, data=self.login_payload)
-
             r = session.post(self.URL, data=self.data_payload)
             log.info(r.text)
 
         matches = re.finditer(r'(?:METAR |SPECI )(?P<METAR>(?P<CODE>\w{4}).*?)(?:<br/>|<h3>|=</span>|<br />)', r.text)
 
         metars = {}
-
         for match in matches:
             info = match.groupdict()
             metars[info['CODE'].upper()] = {'raw_text': info['METAR']}
+
+        return metars
+
+
+class KO61(METARSource):
+
+    ACCEPTED_CODES = {
+        'KO61'
+    }
+
+    def __init__(self, airport_codes, **kwargs):
+        self.airport_codes = [code for code in airport_codes if code in self.ACCEPTED_CODES]
+
+    def get_metar_info(self):
+        metars = {}
+
+        try:
+            driver.get("http://ko61.awos.live")
+
+            # Wait until the element is present (maximum of 10 seconds)
+            element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "td#OfficialObs.Value"))
+            )
+
+            # Get the full text from the element
+            full_text = element.text
+
+            # Use regex to find text starting with KO61
+            match = re.search(r'(KO61[\s\S]+)', full_text)
+            if match:
+                metars['KO61'] = {'raw_text': match.group(1)}
+
+        except Exception:
+            log.exception("Failed to retrieve METAR from KO61.")
 
         return metars
