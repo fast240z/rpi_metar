@@ -1,15 +1,15 @@
-import sys
 from rpi_ws281x import PixelStrip, Color
 
 # The rpi_ws281x library initializes the strip as GRB.
-GREEN = Color(255, 0, 0)
-RED = Color(0, 255, 0)
+#GRB to RGB for WS2812 nanopixels
+GREEN = Color(0, 255, 0)
+RED = Color(255, 0, 0)
 BLUE = Color(0, 0, 255)
-MAGENTA = Color(0, 255, 255)
+MAGENTA = Color(255, 0, 255)
 YELLOW = Color(255, 255, 0)
 BLACK = Color(0, 0, 0)
 WHITE = Color(255, 255, 255)
-ORANGE = Color(205, 255, 0)
+ORANGE = Color(255, 205, 0)
 
 # For gamma correction
 # https://learn.adafruit.com/led-tricks-gamma-correction/the-issue
@@ -31,17 +31,3 @@ GAMMA = [
   177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
   215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255,
 ]
-
-
-def get_color(opt):
-    """A ConfigParser parser that allows setting color values in the cfg.
-
-    They can either be specified as a tuple of 3 ints, or as a string name
-    to an existing named value, e.g. "GREEN"
-    """
-    try:
-        return Color(*(int(val.strip()) for val in opt[1:-1].split(',')))
-    except ValueError:
-        # Wasn't a 3-tuple of ints...
-        this_module = sys.modules[__name__]
-        return getattr(this_module, opt)
