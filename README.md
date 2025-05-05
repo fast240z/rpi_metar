@@ -1,5 +1,12 @@
 # About
 
+This repo is a fork of the rpi_metar written by Scott Sturdivant - https://github.com/ScottSturdivant/rpi_metar.  
+
+Support for Mesotech AWOS has been added to the project.  Mesotech provides AWOS for local airports, and not all Mesotech AWOS report to NOAA/SkyVector/etc.
+
+If you wish to use Mesotech AWOS as a source, you need to add the airport code in the "ACCEPTED_CODES" section of sources.py.
+
+Setup Instructions:
 Inspired by some DIY projects, this script allows you to quickly discern weather conditions by
 changing the colors of LEDs to reflect the current METAR information.  You will need a Raspberry
 Pi, some WS281X LEDs, and the four letter designators of the airports you are interested in.
@@ -58,7 +65,7 @@ file. These configuration values can be set:
 | lightning_duration | 1.0     | A float controlling how long a station blinks white before returning to its original color. |
 | max_wind           | 30      | An integer that sets the threshold for max wind speed in knots. Any steady or gusting winds above this value will result in yellow blinking lights. |
 | metar_refresh_rate | 300     | An integer that controls how frequently (in seconds) the METAR information is polled. |
-| sources            | NOAA,NOAABackup,SkyVector | The data sources to be used. A comma separated list of class names from the sources.py file. `BOM` is another source for Australian stations. `IFIS` is a source for New Zealand stations that requires further configuration.|
+| sources            | NOAA,NOAABackup,SkyVector,Mesotech | The data sources to be used. A comma separated list of class names from the sources.py file. `BOM` is another source for Australian stations. `IFIS` is a source for New Zealand stations that requires further configuration.|
 | wind               | True    | A boolean that controls if high wind speeds should be visually indicated. They will appear as short blinks of yellow before going back to the station's original color. |
 | wind_duration      | 1.0     | A float controlling how long a station blinks yellow before returning to its original color. |
 | unknown_off        | True    | A boolean that controls whether or not stations that are not reporting data will just turn off. If set to `False`, after three attempts (during which time they appear as yellow), they will instead turn to orange. |
