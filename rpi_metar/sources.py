@@ -209,10 +209,10 @@ class IFIS(METARSource):
         return metars
 
 
-class KO61(METARSource):
+class Mesotech(METARSource):
 
     ACCEPTED_CODES = {
-        'KO61'
+        'KO61', 'K4B8'  # Add other supported codes here as needed
     }
 
     def __init__(self, airport_codes, **kwargs):
@@ -222,22 +222,22 @@ class KO61(METARSource):
         metars = {}
 
         try:
-            driver.get("http://ko61.awos.live")
+            for code in self.airport_codes:
+                url = f"https://{code.lower()}.awos.live"
+                driver.get(url)
 
-            # Wait until the element is present (maximum of 10 seconds)
-            element = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "td#OfficialObs.Value"))
-            )
+                element = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "td#OfficialObs.Value"))
+                )
 
-            # Get the full text from the element
-            full_text = element.text
+                full_text = element.text
+                match = re.search(r'OMO\s+(.*)', full_text)
 
-            # Use regex to find text starting with KO61
-            match = re.search(r'(KO61[\s\S]+)', full_text)
-            if match:
-                metars['KO61'] = {'raw_text': match.group(1)}
+                if match:
+                    metars[code] = {'raw_text': match.group(1)}
 
         except Exception:
             log.exception("Failed to retrieve METAR from KO61.")
 
         return metars
+
