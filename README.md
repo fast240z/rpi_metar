@@ -6,7 +6,8 @@ Support for Mesotech AWOS has been added to the project.  Mesotech provides AWOS
 
 If you wish to use Mesotech AWOS as a source, you need to add the airport code in the "ACCEPTED_CODES" section of sources.py.
 
-Setup Instructions:
+# Setup Instructions:
+
 Inspired by some DIY projects, this script allows you to quickly discern weather conditions by
 changing the colors of LEDs to reflect the current METAR information.  You will need a Raspberry
 Pi, some WS281X LEDs, and the four letter designators of the airports you are interested in.
