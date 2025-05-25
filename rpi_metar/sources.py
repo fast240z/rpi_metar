@@ -223,7 +223,7 @@ class Mesotech(METARSource):
 
         try:
             for code in self.airport_codes:
-                url = f"https://{code.lower()}.awos.live"
+                url = f"https://{code.lower()}.awos.live/home"
                 driver.get(url)
 
                 element = WebDriverWait(driver, 10).until(
