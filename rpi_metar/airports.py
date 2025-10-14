@@ -86,7 +86,8 @@ class Airport(object):
             return
 
         # Thunderstorms
-        self.thunderstorms = bool(re.search(r'\w{4,5}.*(TS).*?(?=RMK)', metar['raw_text']) and self.category != wx.FlightCategory.OFF)
+        #self.thunderstorms = bool(re.search(r'\w{4,5}.*(TS).*?(?=RMK)', metar['raw_text']) and self.category != wx.FlightCategory.OFF)
+        self.thunderstorms = bool(re.search(r'\b(?:TS|VCTS|LTG|TSRA|\+TSRA|TSGR)\b', re.sub(r'\bT\d{8}\b', '', metar['raw_text'])) and self.category != wx.FlightCategory.OFF)
 
         # Wind info
         try:
