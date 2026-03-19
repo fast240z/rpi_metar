@@ -39,10 +39,12 @@ class METARSource:
            stop_max_attempt_number=10)
     def _query(self):
         """Queries the NOAA METAR service."""
+        import requests
         log.info(self.url)
         try:
-            response = requests.get(self.url, timeout=10.0)
-            response.raise_for_status()
+           headers = getattr(self, "headers", {})
+           response = requests.get(self.url, headers=headers, timeout=10.0)
+           response.raise_for_status()
         except:
             log.exception('Metar query failure.')
             raise
@@ -52,31 +54,33 @@ class METARSource:
 class NOAA(METARSource):
 
     URL = (
-        'https://{subdomain}.aviationweather.gov/cgi-bin/data/dataserver.php'
-        '?dataSource=metars'
-        '&requestType=retrieve'
-        '&format=xml'
-        '&hoursBeforeNow=2'
-        '&mostRecentForEachStation=true'
-        '&stationString={airport_codes}'
+        "https://aviationweather.gov/api/data/metar"
+        "?ids={airport_codes}"
+        "&format=xml"
     )
 
-    def __init__(self, airport_codes, subdomain='www', **kwargs):
+    def __init__(self, airport_codes, **kwargs):
         self.airport_codes = airport_codes
-        self.subdomain = subdomain
+        self.headers = {
+            "User-Agent": (
+                "metarmap/0.4.1 "
+                
+            )
+        }
 
     def get_metar_info(self):
         metars = {}
 
         for chunk in chunks(self.airport_codes, 250):
-            self.url = self.URL.format(airport_codes=','.join(chunk), subdomain=self.subdomain)
+            self.url = self.URL.format(airport_codes=",".join(chunk))
             response = self._query()
+
             try:
                 response = parsexml(response.text)['response']['data']['METAR']
                 if not isinstance(response, list):
                     response = [response]
-            except:
-                log.exception('Metar response is invalid.')
+            except Exception:
+                log.exception("Metar response is invalid.")
                 raise
             finally:
                 time.sleep(1.0)
@@ -84,7 +88,7 @@ class NOAA(METARSource):
             for m in response:
                 metars[m['station_id'].upper()] = m
 
-        log.info(f"Retrieved NOAA METARs: {metars}")
+        log.info(f"Retrieved NOAA METARs: {len(metars)} stations")
         return metars
 
 
