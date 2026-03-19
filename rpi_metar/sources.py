@@ -240,7 +240,7 @@ class Mesotech(METARSource):
                 pass
 
         client = mqtt.Client(transport="websockets")
-        client.username_pw_set(self.AWOS_USER, self.AWOS_PASS)
+        client.username_pw_set(AWOS_USER, AWOS_PASS)
 
         client.ws_set_options(
             path="/",
