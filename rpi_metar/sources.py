@@ -1,3 +1,4 @@
+import os
 import csv
 import logging
 import re
@@ -212,8 +213,8 @@ class Mesotech(METARSource):
 
     AWOS_HOST = "mqtt.awos.live"
     AWOS_PORT = 8083
-    AWOS_USER = "AWA_Web_wVVdDr"
-    AWOS_PASS = "Po&X58vexCkq;Wyp"
+    AWOS_USER = os.getenv("AWOS_USER")
+    AWOS_PASS = os.getenv("AWOS_PASS")
 
     def __init__(self, airport_codes, **kwargs):
         self.airport_codes = [
