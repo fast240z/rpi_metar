@@ -3,25 +3,13 @@ import logging
 import re
 import requests
 import time
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+import json
+import ssl
+import paho.mqtt.client as mqtt
+
 from pkg_resources import resource_filename
 from retrying import retry
 from xmltodict import parse as parsexml
-
-# Set up Chrome options
-options = webdriver.ChromeOptions()
-options.add_argument('--headless')
-options.add_argument('--no-sandbox')
-options.add_argument('--disable-dev-shm-usage')
-options.add_argument('--disable-gpu')
-options.add_argument('--remote-debugging-port=9222')
-options.binary_location = "/usr/bin/chromium-browser"
-service = Service("/usr/bin/chromedriver")
-driver = webdriver.Chrome(service=service, options=options)
 
 log = logging.getLogger(__name__)
 
@@ -39,13 +27,12 @@ class METARSource:
            stop_max_attempt_number=10)
     def _query(self):
         """Queries the NOAA METAR service."""
-        import requests
         log.info(self.url)
         try:
-           headers = getattr(self, "headers", {})
-           response = requests.get(self.url, headers=headers, timeout=10.0)
-           response.raise_for_status()
-        except:
+            headers = getattr(self, "headers", {})
+            response = requests.get(self.url, headers=headers, timeout=10.0)
+            response.raise_for_status()
+        except Exception:
             log.exception('Metar query failure.')
             raise
         return response
@@ -62,10 +49,7 @@ class NOAA(METARSource):
     def __init__(self, airport_codes, **kwargs):
         self.airport_codes = airport_codes
         self.headers = {
-            "User-Agent": (
-                "metarmap/0.4.1 "
-                
-            )
+            "User-Agent": "metarmap/0.4.1"
         }
 
     def get_metar_info(self):
@@ -95,7 +79,7 @@ class NOAA(METARSource):
 class NOAABackup(NOAA):
 
     def __init__(self, airport_codes, **kwargs):
-        super(NOAABackup, self).__init__(airport_codes, subdomain='bcaws', **kwargs)
+        super(NOAABackup, self).__init__(airport_codes, **kwargs)
 
 
 class SkyVector(METARSource):
@@ -137,7 +121,7 @@ class SkyVector(METARSource):
         response = self._query()
         try:
             data = response.json()['weather']
-        except:
+        except Exception:
             log.exception('Metar response is invalid.')
             raise
 
@@ -163,7 +147,10 @@ class BOM(METARSource):
 
         r = requests.post(self.URL, data=payload)
 
-        matches = re.finditer(r'(?:METAR |SPECI )(?P<METAR>(?P<CODE>\w{4}).*?)(?:<br />|<h3>)', r.text)
+        matches = re.finditer(
+            r'(?:METAR |SPECI )(?P<METAR>(?P<CODE>\w{4}).*?)(?:<br />|<h3>)',
+            r.text
+        )
 
         metars = {}
         for match in matches:
@@ -185,7 +172,9 @@ class IFIS(METARSource):
     }
 
     def __init__(self, airport_codes, *, config, **kwargs):
-        self.airport_codes = ' '.join([code for code in airport_codes if code in IFIS.ACCEPTED_CODES])
+        self.airport_codes = ' '.join(
+            [code for code in airport_codes if code in IFIS.ACCEPTED_CODES]
+        )
         self.username = config['ifis']['username']
         self.password = config['ifis']['password']
         self.login_payload = {
@@ -201,9 +190,11 @@ class IFIS(METARSource):
         with requests.Session() as session:
             session.post(self.LOGIN_URL, data=self.login_payload)
             r = session.post(self.URL, data=self.data_payload)
-            log.info(r.text)
 
-        matches = re.finditer(r'(?:METAR |SPECI )(?P<METAR>(?P<CODE>\w{4}).*?)(?:<br/>|<h3>|=</span>|<br />)', r.text)
+        matches = re.finditer(
+            r'(?:METAR |SPECI )(?P<METAR>(?P<CODE>\w{4}).*?)(?:<br/>|<h3>|=</span>|<br />)',
+            r.text
+        )
 
         metars = {}
         for match in matches:
@@ -216,32 +207,81 @@ class IFIS(METARSource):
 class Mesotech(METARSource):
 
     ACCEPTED_CODES = {
-        'KO61', 'K4B8'  # Add other supported codes here as needed
+        'KO61', 'K4B8'
     }
 
+    AWOS_HOST = "mqtt.awos.live"
+    AWOS_PORT = 8083
+    AWOS_USER = "AWA_Web_wVVdDr"
+    AWOS_PASS = "Po&X58vexCkq;Wyp"
+
     def __init__(self, airport_codes, **kwargs):
-        self.airport_codes = [code for code in airport_codes if code in self.ACCEPTED_CODES]
+        self.airport_codes = [
+            code for code in airport_codes if code in self.ACCEPTED_CODES
+        ]
+
+    def _fetch_omo_report(self, icao, timeout=5):
+        topic = f"AWA/{icao}/ReportData"
+        result = {"omo": None}
+
+        def on_connect(client, userdata, flags, rc, properties=None):
+            if rc == 0:
+                client.subscribe(topic)
+
+        def on_message(client, userdata, msg):
+            try:
+                payload = json.loads(msg.payload.decode())
+                omo = payload.get("omo_report")
+                if omo:
+                    result["omo"] = omo
+                    client.disconnect()
+            except Exception:
+                pass
+
+        client = mqtt.Client(transport="websockets")
+        client.username_pw_set(self.AWOS_USER, self.AWOS_PASS)
+
+        client.ws_set_options(
+            path="/",
+            headers={"Origin": f"https://{icao.lower()}.awos.live"}
+        )
+
+        client.tls_set(cert_reqs=ssl.CERT_NONE)
+        client.tls_insecure_set(True)
+
+        client.on_connect = on_connect
+        client.on_message = on_message
+
+        try:
+            client.connect(self.AWOS_HOST, self.AWOS_PORT, 60)
+            client.loop_start()
+
+            start = time.time()
+            while time.time() - start < timeout:
+                if result["omo"]:
+                    break
+                time.sleep(0.1)
+
+        finally:
+            client.loop_stop()
+            client.disconnect()
+
+        return result["omo"]
 
     def get_metar_info(self):
         metars = {}
 
-        try:
-            for code in self.airport_codes:
-                url = f"https://{code.lower()}.awos.live/home"
-                driver.get(url)
+        for code in self.airport_codes:
+            try:
+                omo = self._fetch_omo_report(code)
 
-                element = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "td#OfficialObs.Value"))
-                )
+                if omo:
+                    if omo.startswith("OMO "):
+                        omo = omo[4:]
 
-                full_text = element.text
-                match = re.search(r'OMO\s+(.*)', full_text)
+                    metars[code] = {'raw_text': omo}
 
-                if match:
-                    metars[code] = {'raw_text': match.group(1)}
-
-        except Exception:
-            log.exception("Failed to retrieve METAR from KO61.")
+            except Exception:
+                log.exception(f"Failed to retrieve METAR from {code}")
 
         return metars
-
